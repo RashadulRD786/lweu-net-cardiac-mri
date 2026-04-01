@@ -1,0 +1,40 @@
+# Data — never commit raw or processed data
+data/raw/
+data/processed/
+data/splits/
+
+# Model weights
+checkpoints/
+
+# Experiment logs
+logs/
+experiments/mlruns/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Environment
+*.egg-info/
+dist/
+build/
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Temporary numpy/output files
+*.npy
+*.nii.gz
+*.dcm
