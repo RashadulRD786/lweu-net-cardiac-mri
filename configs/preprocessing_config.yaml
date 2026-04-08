@@ -1,0 +1,37 @@
+# configs/preprocessing_config.yaml
+# Central configuration for all preprocessing steps.
+# Change parameters here — nothing else needs editing.
+
+paths:
+  raw_train_dir  : data/raw/training
+  raw_test_dir   : data/raw/testing
+  output_dir     : data/preprocessed
+  splits_dir     : data/splits
+
+preprocessing:
+  target_spacing : 1.5        # mm/pixel — justified by dataset mean of 1.512mm
+  target_size    : [224, 224] # pixels — height x width
+  clip_low       : 0.5        # percentile lower bound for outlier clipping
+  clip_high      : 99.5       # percentile upper bound for outlier clipping
+
+split:
+  val_fraction   : 0.2        # 20 of 100 training patients → validation
+  random_seed    : 42         # fixed seed for reproducibility
+
+augmentation:
+  rotation_limit    : 15      # degrees ±15
+  h_flip_prob       : 0.5
+  v_flip_prob       : 0.5
+  scale_limit       : 0.1     # ±10%
+  gaussian_noise_prob    : 0.3
+  gaussian_noise_var_min : 0.001   # minimum noise variance
+  gaussian_noise_var_max : 0.005   # maximum noise variance
+  gamma_prob        : 0.3
+  gamma_limit_low   : 70      # γ lower bound (0.7 scaled by 100)
+  gamma_limit_high  : 150     # γ upper bound (1.5 scaled by 100)
+
+labels:
+  background     : 0
+  rv             : 1
+  myo            : 2
+  lv             : 3
