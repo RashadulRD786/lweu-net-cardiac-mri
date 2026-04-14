@@ -1,0 +1,82 @@
+# ============================================================
+# Training Configuration — U-Net Baseline
+# LWEU-Net Thesis | ACDC Cardiac MRI Segmentation
+# ============================================================
+# All decisions justified by literature review (19 papers, 6 batches).
+# Do NOT change these for the baseline — they must stay identical
+# to the LWEU-Net training config for fair architectural comparison.
+# ============================================================
+
+# --- Experiment ---
+experiment_name: "unet_baseline"
+run_name:        "unet_baseline_v1"
+
+# --- Paths ---
+data_dir:        "data/preprocessed"          # root of train/val/test splits
+checkpoint_dir:  "checkpoints/unet_baseline"
+log_dir:         "logs/unet_baseline"
+
+# --- Data ---
+num_classes:     4                         # 0=BG, 1=RV, 2=MYO, 3=LV
+in_channels:     1                         # grayscale MRI
+image_size:      [224, 224]
+num_workers:     4                         # DataLoader workers
+pin_memory:      true
+
+# --- Architecture ---
+model: "unet_baseline"
+base_filters:    64                        # filter progression: 64→128→256→512→1024
+dropout_p:       0.5                       # bottleneck dropout only
+
+# --- Training Protocol ---
+# Adam lr=1e-4: Yang 2020, Singh 2023, Ba Mahel 2025, Chen 2025, DeSPPNet 2024 (5/9 papers)
+# Batch=16    : Wijesinghe 2025; balances RTX 2060 8GB memory at 224×224
+# Epochs=200  : Tesfaye 2023, Singh 2023
+# Early stop  : patience=30 on val_mean_dice (monitor foreground Dice)
+optimizer:       "adam"
+learning_rate:   1.0e-4
+weight_decay:    0.0                       # no L2 — not standard in Tier 1 papers
+batch_size:      16
+epochs:          200
+early_stopping_patience: 30               # monitor: val_mean_dice (foreground)
+
+# --- LR Schedule ---
+# ReduceLROnPlateau: Wijesinghe 2025; best practice for medical segmentation
+lr_schedule:
+  name:          "ReduceLROnPlateau"
+  mode:          "max"                     # maximise val_mean_dice
+  factor:        0.5
+  patience:      10
+  min_lr:        1.0e-6
+  verbose:       true
+
+# --- Loss ---
+# 0.5 Dice + 0.5 CE: consensus from Yang 2020, Singh 2023, Wijesinghe 2025
+# CE handles per-pixel accuracy; Dice handles 25.5:1 BG:FG class imbalance
+loss:
+  dice_weight:   0.5
+  ce_weight:     0.5
+  class_weights: null                      # null = uniform; set to list if needed
+
+# --- Augmentation (train only, on-the-fly) ---
+# Rotation + flip : universal across all Tier 1 papers
+# Elastic deform  : Ronneberger 2015, Tesfaye 2023 — helps MYO boundary learning
+# Noise + gamma   : ARW-Net Table 1 (Isensee [28]) — MRI scanner variability
+augmentation:
+  rotation_limit:      15                  # degrees, p=1.0
+  h_flip_p:            0.5
+  v_flip_p:            0.5
+  scale_limit:         0.10               # ±10%, p=0.5
+  gaussian_noise_var:  [0.001, 0.005]     # p=0.5
+  gamma_limit:         [70, 150]          # p=0.5
+  elastic_alpha:       50
+  elastic_sigma:       6
+  elastic_p:           0.3
+
+# --- Reproducibility ---
+seed: 42
+
+# --- Logging ---
+log_interval:    10                        # log every N batches
+save_best_only:  true                      # save checkpoint only on val improvement
+mlflow:          true                      # log to experiments/mlruns
