@@ -1,0 +1,77 @@
+# ============================================================
+# Training Configuration — LWEU-Net Full (Ablation Row 4)
+# LWEU-Net Thesis | ACDC Cardiac MRI Segmentation
+# ============================================================
+# LRHE encoder + Dilated bottleneck + Decoder ECA + Boundary Loss
+# This is the PROPOSED MODEL — full LWEU-Net
+# ============================================================
+
+# --- Experiment ---
+experiment_name: "lweunet_full"
+run_name:        "lweunet_full_v1"
+
+# --- Paths ---
+data_dir:        "data/preprocessed"
+checkpoint_dir:  "checkpoints/lweunet"
+log_dir:         "logs/lweunet"
+
+# --- Data ---
+num_classes:     4
+in_channels:     1
+image_size:      [224, 224]
+num_workers:     4
+pin_memory:      true
+
+# --- Architecture ---
+model:           "lweunet"
+base_filters:    32
+dropout_p:       0.5
+use_eca:         true               # Full model — ECA enabled
+
+# --- Training Protocol (identical to baseline) ---
+optimizer:       "adam"
+learning_rate:   1.0e-4
+weight_decay:    0.0
+batch_size:      16
+epochs:          200
+early_stopping_patience: 30
+
+# --- LR Schedule ---
+lr_schedule:
+  name:          "ReduceLROnPlateau"
+  mode:          "max"
+  factor:        0.5
+  patience:      10
+  min_lr:        1.0e-6
+  verbose:       true
+
+# --- Loss ---
+# Dice+CE weights reduced to 0.4 each to accommodate boundary term
+# boundary_weight=0.2 with 50-epoch linear warmup
+# Applied to MYO class only (index 2)
+loss:
+  dice_weight:         0.4         # reduced from 0.5 to make room for boundary
+  ce_weight:           0.4         # reduced from 0.5
+  use_boundary_loss:   true        # Row 4 — boundary loss enabled
+  boundary_weight:     0.2         # max weight after warmup
+  warmup_epochs:       80          # linear ramp from 0 → 0.2
+  class_weights:       null
+
+# --- Augmentation (identical to baseline) ---
+augmentation:
+  rotation_limit:      15
+  h_flip_p:            0.5
+  v_flip_p:            0.5
+  scale_limit:         0.10
+  gaussian_noise_var:  [0.001, 0.005]
+  elastic_alpha:       50
+  elastic_sigma:       6
+  elastic_p:           0.3
+
+# --- Reproducibility ---
+seed: 42
+
+# --- Logging ---
+log_interval:    10
+save_best_only:  true
+mlflow:          false
