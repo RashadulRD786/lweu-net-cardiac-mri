@@ -259,7 +259,8 @@ class Trainer:
 
         for epoch in range(1, self.max_epochs + 1):
             t_epoch = time.time()
-
+            
+            self.criterion.set_epoch(epoch)
             train_metrics = self._train_epoch(epoch)
             val_metrics   = self._val_epoch(epoch)
 
