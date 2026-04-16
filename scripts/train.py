@@ -1,18 +1,11 @@
 """
-Training entry point for LWEU-Net project.
+Training entry point — supports baseline U-Net and all LWEU-Net ablation variants.
 
 Usage:
     python scripts/train.py --config configs/train_unet_baseline.yaml
-    python scripts/train.py --config configs/train_unet_baseline.yaml --device cuda
-    python scripts/train.py --config configs/train_unet_baseline.yaml --device cpu
-
-The script:
-  1. Loads config from YAML
-  2. Sets global seed for reproducibility
-  3. Builds Dataset and DataLoaders
-  4. Builds model, loss, optimizer, scheduler
-  5. Calls Trainer.train()
-  6. Logs completion summary
+    python scripts/train.py --config configs/train_lweunet_base.yaml
+    python scripts/train.py --config configs/train_lweunet_eca.yaml
+    python scripts/train.py --config configs/train_lweunet_full.yaml
 """
 
 import os
@@ -26,203 +19,145 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import yaml
 
-# Allow imports from project root
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.data.dataset      import ACDCDataset
-from src.models.unet_baseline import UNetBaseline
-from src.losses.combo_loss import CombinedLoss
-from src.training.trainer  import Trainer
-
-# ---------------------------------------------------------------------------
-# Logging setup
-# ---------------------------------------------------------------------------
+from src.data.dataset           import ACDCDataset
+from src.models.unet_baseline   import UNetBaseline
+from src.models.lweunet.lweunet import LWEUNet
+from src.losses.combo_loss      import CombinedLoss
+from src.training.trainer       import Trainer
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Reproducibility
-# ---------------------------------------------------------------------------
-
-def set_seed(seed: int):
-    import random
-    import numpy as np
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+def set_seed(seed):
+    import random, numpy as np
+    random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark     = False
-    logger.info(f"Global seed set to {seed}")
+    logger.info(f"Seed: {seed}")
 
 
-# ---------------------------------------------------------------------------
-# Config loader
-# ---------------------------------------------------------------------------
-
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        cfg = yaml.safe_load(f)
-    logger.info(f"Config loaded from {path}")
-    return cfg
+def load_config(path):
+    with open(path) as f:
+        return yaml.safe_load(f)
 
 
-# ---------------------------------------------------------------------------
-# Build components
-# ---------------------------------------------------------------------------
-
-def build_dataloaders(cfg: dict):
-    data_dir    = cfg["data_dir"]
-    batch_size  = cfg["batch_size"]
-    num_workers = cfg.get("num_workers", 4)
-    pin_memory  = cfg.get("pin_memory", True)
-
-    train_ds = ACDCDataset(data_dir=data_dir, split="train", augment=True)
-    val_ds   = ACDCDataset(data_dir=data_dir, split="val",   augment=False)
-
-    logger.info(f"Train dataset : {train_ds}")
-    logger.info(f"Val   dataset : {val_ds}")
-
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        drop_last=True,    # avoids BatchNorm issues with single-sample last batch
-    )
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        drop_last=False,
-    )
-
-    logger.info(f"Train batches : {len(train_loader)} × batch_size={batch_size}")
-    logger.info(f"Val   batches : {len(val_loader)}")
-
+def build_dataloaders(cfg):
+    train_ds = ACDCDataset(cfg["data_dir"], "train", augment=True)
+    val_ds   = ACDCDataset(cfg["data_dir"], "val",   augment=False)
+    logger.info(f"Train: {train_ds}")
+    logger.info(f"Val  : {val_ds}")
+    kw = dict(batch_size=cfg["batch_size"],
+              num_workers=cfg.get("num_workers", 4),
+              pin_memory=cfg.get("pin_memory", True))
+    train_loader = DataLoader(train_ds, shuffle=True,  drop_last=True,  **kw)
+    val_loader   = DataLoader(val_ds,   shuffle=False, drop_last=False, **kw)
+    logger.info(f"Train batches: {len(train_loader)}  Val batches: {len(val_loader)}")
     return train_loader, val_loader
 
 
-def build_model(cfg: dict, device: torch.device) -> torch.nn.Module:
-    model_name = cfg.get("model", "unet_baseline")
-    assert model_name == "unet_baseline", \
-        f"This script currently supports 'unet_baseline', got '{model_name}'"
+def build_model(cfg, device):
+    name = cfg.get("model", "unet_baseline")
+    if name == "unet_baseline":
+        model = UNetBaseline(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 64),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+        )
+        logger.info(f"Model: UNetBaseline | Params: {model.count_parameters():,}")
+    elif name == "lweunet":
+        model = LWEUNet(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 32),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+            use_eca      = cfg.get("use_eca",       True),
+        )
+        bd = model.parameter_breakdown()
+        logger.info(f"Model: LWEUNet (use_eca={cfg.get('use_eca')})")
+        logger.info(f"  Encoder={bd['encoder']:,}  "
+                    f"Bottleneck={bd['bottleneck']:,}  "
+                    f"Decoder={bd['decoder']:,}  "
+                    f"Total={bd['total']:,} ({bd['total']/1e6:.2f}M)")
+    else:
+        raise ValueError(f"Unknown model '{name}'")
+    return model.to(device)
 
-    model = UNetBaseline(
-        in_channels  = cfg.get("in_channels",  1),
-        num_classes  = cfg.get("num_classes",  4),
-        base_filters = cfg.get("base_filters", 64),
-        dropout_p    = cfg.get("dropout_p",    0.5),
-    )
-    model = model.to(device)
-    logger.info(f"Model : UNetBaseline | Parameters: {model.count_parameters():,}")
-    return model
 
-
-def build_loss(cfg: dict, device: torch.device) -> CombinedLoss:
-    loss_cfg      = cfg.get("loss", {})
-    dice_weight   = loss_cfg.get("dice_weight",   0.5)
-    ce_weight     = loss_cfg.get("ce_weight",     0.5)
-    class_weights = loss_cfg.get("class_weights", None)
-
-    if class_weights is not None:
-        class_weights = torch.tensor(class_weights, dtype=torch.float32).to(device)
-
+def build_loss(cfg, device):
+    lc  = cfg.get("loss", {})
+    cw  = lc.get("class_weights", None)
+    if cw is not None:
+        cw = torch.tensor(cw, dtype=torch.float32).to(device)
     criterion = CombinedLoss(
-        num_classes    = cfg.get("num_classes", 4),
-        dice_weight    = dice_weight,
-        ce_weight      = ce_weight,
-        class_weights  = class_weights,
+        num_classes       = cfg.get("num_classes", 4),
+        dice_weight       = lc.get("dice_weight",       0.5),
+        ce_weight         = lc.get("ce_weight",         0.5),
+        use_boundary_loss = lc.get("use_boundary_loss", False),
+        boundary_weight   = lc.get("boundary_weight",   0.2),
+        warmup_epochs     = lc.get("warmup_epochs",     50),
+        class_weights     = cw,
     )
-    logger.info(f"Loss : {dice_weight:.1f} × Dice + {ce_weight:.1f} × CrossEntropy")
+    logger.info(f"Loss: dice={lc.get('dice_weight',0.5)} "
+                f"ce={lc.get('ce_weight',0.5)} "
+                f"boundary={lc.get('use_boundary_loss',False)}")
     return criterion
 
 
-def build_optimizer_and_scheduler(cfg: dict, model):
-    lr           = cfg.get("learning_rate", 1e-4)
-    weight_decay = cfg.get("weight_decay",  0.0)
-
-    optimizer = optim.Adam(
-        model.parameters(),
-        lr=lr,
-        weight_decay=weight_decay,
+def build_optimizer_and_scheduler(cfg, model):
+    lr  = cfg.get("learning_rate", 1e-4)
+    wd  = cfg.get("weight_decay",  0.0)
+    opt = optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
+    sc  = cfg.get("lr_schedule", {})
+    sched = ReduceLROnPlateau(
+        opt,
+        mode     = sc.get("mode",     "max"),
+        factor   = sc.get("factor",   0.5),
+        patience = sc.get("patience", 10),
+        min_lr   = sc.get("min_lr",   1e-6),
+        verbose  = sc.get("verbose",  True),
     )
+    logger.info(f"Optimizer: Adam lr={lr}  Scheduler: ReduceLROnPlateau")
+    return opt, sched
 
-    sched_cfg = cfg.get("lr_schedule", {})
-    scheduler = ReduceLROnPlateau(
-        optimizer,
-        mode    = sched_cfg.get("mode",     "max"),
-        factor  = sched_cfg.get("factor",   0.5),
-        patience= sched_cfg.get("patience", 10),
-        min_lr  = sched_cfg.get("min_lr",   1e-6),
-        verbose = sched_cfg.get("verbose",  True),
-    )
-
-    logger.info(f"Optimizer : Adam (lr={lr}, weight_decay={weight_decay})")
-    logger.info(f"Scheduler : ReduceLROnPlateau (factor=0.5, patience=10)")
-    return optimizer, scheduler
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Train segmentation model on ACDC")
-    parser.add_argument(
-        "--config", type=str, required=True,
-        help="Path to YAML config file, e.g. configs/train_unet_baseline.yaml"
-    )
-    parser.add_argument(
-        "--device", type=str, default=None,
-        help="Device override: 'cuda', 'cpu', or 'cuda:0'. Auto-detected if not set."
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--device", default=None)
     args = parser.parse_args()
 
-    # --- Config ---
-    cfg = load_config(args.config)
-
-    # --- Seed ---
+    cfg    = load_config(args.config)
     set_seed(cfg.get("seed", 42))
 
-    # --- Device ---
-    if args.device:
-        device = torch.device(args.device)
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Device : {device}")
+    device = torch.device(args.device) if args.device else \
+             torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Device: {device}")
     if device.type == "cuda":
-        logger.info(f"GPU    : {torch.cuda.get_device_name(device)}")
-        logger.info(f"VRAM   : {torch.cuda.get_device_properties(device).total_memory / 1e9:.1f} GB")
+        logger.info(f"GPU: {torch.cuda.get_device_name(device)}")
 
-    # --- Add file handler for log_dir ---
-    log_dir = cfg.get("log_dir", "logs/unet_baseline")
+    log_dir = cfg.get("log_dir", "logs/lweunet")
     os.makedirs(log_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(log_dir, "train.log"))
-    file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
-    logging.getLogger().addHandler(file_handler)
+    fh = logging.FileHandler(os.path.join(log_dir, "train.log"))
+    fh.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+    logging.getLogger().addHandler(fh)
 
-    # --- Build components ---
     train_loader, val_loader = build_dataloaders(cfg)
     model                    = build_model(cfg, device)
     criterion                = build_loss(cfg, device)
     optimizer, scheduler     = build_optimizer_and_scheduler(cfg, model)
 
-    # --- Trainer ---
-    trainer = Trainer(
+    Trainer(
         model          = model,
         criterion      = criterion,
         optimizer      = optimizer,
@@ -231,16 +166,12 @@ def main():
         val_loader     = val_loader,
         device         = device,
         config         = cfg,
-        checkpoint_dir = cfg.get("checkpoint_dir", "checkpoints/unet_baseline"),
+        checkpoint_dir = cfg.get("checkpoint_dir", "checkpoints/lweunet"),
         log_dir        = log_dir,
         use_mlflow     = cfg.get("mlflow", False),
-    )
-
-    # --- Train ---
-    history = trainer.train()
+    ).train()
 
     logger.info("Done.")
-    return history
 
 
 if __name__ == "__main__":
