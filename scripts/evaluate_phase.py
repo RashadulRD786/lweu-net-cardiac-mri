@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.models.unet_baseline import UNetBaseline
+# Model imports handled inside build_model() based on config
 from src.evaluation.metrics   import (
     evaluate_on_test_set,
     get_efficiency_summary,
@@ -87,12 +87,28 @@ def load_config(path):
 
 
 def build_model(cfg, checkpoint_path, device):
-    model = UNetBaseline(
-        in_channels  = cfg.get("in_channels",  1),
-        num_classes  = cfg.get("num_classes",  4),
-        base_filters = cfg.get("base_filters", 64),
-        dropout_p    = cfg.get("dropout_p",    0.5),
-    )
+    model_name = cfg.get("model", "unet_baseline")
+
+    if model_name == "unet_baseline":
+        from src.models.unet_baseline import UNetBaseline
+        model = UNetBaseline(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 64),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+        )
+    elif model_name == "lweunet":
+        from src.models.lweunet.lweunet import LWEUNet
+        model = LWEUNet(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 32),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+            use_eca      = cfg.get("use_eca",       True),
+        )
+    else:
+        raise ValueError(f"Unknown model '{model_name}'")
+
     ckpt = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(ckpt["model_state"])
     model = model.to(device)
