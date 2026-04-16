@@ -1,0 +1,75 @@
+# ============================================================
+# Training Configuration — LWEU-Net + ECA (Ablation Row 3)
+# LWEU-Net Thesis | ACDC Cardiac MRI Segmentation
+# ============================================================
+# LRHE encoder + Dilated bottleneck + Decoder ECA
+# NO boundary loss
+# All other settings identical to baseline for fair comparison
+# ============================================================
+
+# --- Experiment ---
+experiment_name: "lweunet_eca"
+run_name:        "lweunet_eca_v1"
+
+# --- Paths ---
+data_dir:        "data/preprocessed"
+checkpoint_dir:  "checkpoints/lweunet"
+log_dir:         "logs/lweunet"
+
+# --- Data ---
+num_classes:     4
+in_channels:     1
+image_size:      [224, 224]
+num_workers:     4
+pin_memory:      true
+
+# --- Architecture ---
+model:           "lweunet"
+base_filters:    32
+dropout_p:       0.5
+use_eca:         true               # Row 3 — ECA enabled
+
+# --- Training Protocol (identical to baseline) ---
+optimizer:       "adam"
+learning_rate:   1.0e-4
+weight_decay:    0.0
+batch_size:      16
+epochs:          200
+early_stopping_patience: 30
+
+# --- LR Schedule ---
+lr_schedule:
+  name:          "ReduceLROnPlateau"
+  mode:          "max"
+  factor:        0.5
+  patience:      10
+  min_lr:        1.0e-6
+  verbose:       true
+
+# --- Loss ---
+loss:
+  dice_weight:         0.5         # same as baseline
+  ce_weight:           0.5         # same as baseline
+  use_boundary_loss:   false       # Row 3 — no boundary loss yet
+  boundary_weight:     0.2
+  warmup_epochs:       50
+  class_weights:       null
+
+# --- Augmentation (identical to baseline) ---
+augmentation:
+  rotation_limit:      15
+  h_flip_p:            0.5
+  v_flip_p:            0.5
+  scale_limit:         0.10
+  gaussian_noise_var:  [0.001, 0.005]
+  elastic_alpha:       50
+  elastic_sigma:       6
+  elastic_p:           0.3
+
+# --- Reproducibility ---
+seed: 42
+
+# --- Logging ---
+log_interval:    10
+save_best_only:  true
+mlflow:          false
