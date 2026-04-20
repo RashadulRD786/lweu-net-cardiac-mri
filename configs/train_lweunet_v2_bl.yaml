@@ -1,0 +1,67 @@
+# ============================================================
+# Training Configuration — LWEU-Net V2 + Boundary Loss
+# Experiment Set 2, Row 2.2
+# ============================================================
+# Same architecture as V2 — EnhancedBlock throughout
+# Adds boundary loss ADDITIVELY on top of full Dice+CE
+# Key fixes from Set 1 failure:
+#   - Dice+CE kept at 0.5:0.5 (not reduced to 0.4:0.4)
+#   - Boundary weight 0.1 (not 0.2 — less disruptive)
+#   - Warmup 80 epochs (not 50 — model stabilises first)
+#   - MYO only (class index 2)
+# ============================================================
+
+experiment_name: "lweunet_v2_bl"
+run_name:        "lweunet_v2_bl_v1"
+
+data_dir:        "data/preprocessed"
+checkpoint_dir:  "checkpoints/lweunet_v2_bl"
+log_dir:         "logs/lweunet_v2_bl"
+
+num_classes:     4
+in_channels:     1
+image_size:      [224, 224]
+num_workers:     4
+pin_memory:      true
+
+model:           "lweunet_v2"
+base_filters:    32
+dropout_p:       0.5
+
+optimizer:       "adam"
+learning_rate:   1.0e-4
+weight_decay:    0.0
+batch_size:      16
+epochs:          200
+early_stopping_patience: 30
+
+lr_schedule:
+  name:          "ReduceLROnPlateau"
+  mode:          "max"
+  factor:        0.5
+  patience:      10
+  min_lr:        1.0e-6
+  verbose:       true
+
+loss:
+  dice_weight:         0.5      # full strength — NOT reduced
+  ce_weight:           0.5      # full strength — NOT reduced
+  use_boundary_loss:   true     # additive on top of full Dice+CE
+  boundary_weight:     0.1      # smaller than Set 1 (was 0.2)
+  warmup_epochs:       80       # longer warmup — model stabilises first
+  class_weights:       null
+
+augmentation:
+  rotation_limit:      15
+  h_flip_p:            0.5
+  v_flip_p:            0.5
+  scale_limit:         0.10
+  gaussian_noise_var:  [0.001, 0.005]
+  elastic_alpha:       50
+  elastic_sigma:       6
+  elastic_p:           0.3
+
+seed: 42
+log_interval:    10
+save_best_only:  true
+mlflow:          false
