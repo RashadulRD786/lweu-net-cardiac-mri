@@ -1,0 +1,64 @@
+# ============================================================
+# Training Configuration — LWEU-Net V2
+# Enhanced MBConv-MLP-SE architecture
+# ============================================================
+# Novel EnhancedBlock replaces DepthwiseSepConv in deep levels
+# Global Context Gate at Enc4, Bottleneck, Dec4, Dec3
+# Loss: 0.5 Dice + 0.5 CE (additive boundary loss removed for
+# clean ablation — test architecture contribution first)
+# ============================================================
+
+experiment_name: "lweunet_v2"
+run_name:        "lweunet_v2_v1"
+
+data_dir:        "data/preprocessed"
+checkpoint_dir:  "checkpoints/lweunet_v2"
+log_dir:         "logs/lweunet_v2"
+
+num_classes:     4
+in_channels:     1
+image_size:      [224, 224]
+num_workers:     4
+pin_memory:      true
+
+model:           "lweunet_v2"
+base_filters:    32
+dropout_p:       0.5
+
+optimizer:       "adam"
+learning_rate:   1.0e-4
+weight_decay:    0.0
+batch_size:      16
+epochs:          200
+early_stopping_patience: 30
+
+lr_schedule:
+  name:          "ReduceLROnPlateau"
+  mode:          "max"
+  factor:        0.5
+  patience:      10
+  min_lr:        1.0e-6
+  verbose:       true
+
+loss:
+  dice_weight:         0.5
+  ce_weight:           0.5
+  use_boundary_loss:   false
+  boundary_weight:     0.2
+  warmup_epochs:       50
+  class_weights:       null
+
+augmentation:
+  rotation_limit:      15
+  h_flip_p:            0.5
+  v_flip_p:            0.5
+  scale_limit:         0.10
+  gaussian_noise_var:  [0.001, 0.005]
+  elastic_alpha:       50
+  elastic_sigma:       6
+  elastic_p:           0.3
+
+seed: 42
+log_interval:    10
+save_best_only:  true
+mlflow:          false
