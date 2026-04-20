@@ -106,6 +106,14 @@ def build_model(cfg, checkpoint_path, device):
             dropout_p    = cfg.get("dropout_p",    0.5),
             use_eca      = cfg.get("use_eca",       True),
         )
+    elif model_name == "lweunet_v2":
+         from src.models.lweunet.lweunet_v2 import LWEUNetV2
+         model = LWEUNetV2(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 32),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+    )
     else:
         raise ValueError(f"Unknown model '{model_name}'")
 
