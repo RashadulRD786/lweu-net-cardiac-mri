@@ -104,6 +104,18 @@ def build_model(cfg, device):
                     f"Bottleneck={bd['bottleneck']:,}  "
                     f"Decoder={bd['decoder']:,}  "
                     f"Total={bd['total']:,} ({bd['total']/1e6:.2f}M)")
+
+    elif name == "lweunet_v2_lsa":
+        from src.models.lweunet.lweunet_v2_lsa import LWEUNetV2LSA
+        model = LWEUNetV2LSA(
+            in_channels  = cfg.get("in_channels",  1),
+            num_classes  = cfg.get("num_classes",  4),
+            base_filters = cfg.get("base_filters", 32),
+            dropout_p    = cfg.get("dropout_p",    0.5),
+        )
+        bd = model.parameter_breakdown()
+        logger.info(f"Model: LWEUNetV2LSA")
+        logger.info(f"  Total={bd['total']:,} ({bd['total']/1e6:.2f}M)")
     else:
         raise ValueError(f"Unknown model '{name}'")
     return model.to(device)
