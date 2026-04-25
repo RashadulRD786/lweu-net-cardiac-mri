@@ -122,6 +122,36 @@ def build_model(cfg, checkpoint_path, device):
             base_filters = cfg.get("base_filters", 32),
             dropout_p    = cfg.get("dropout_p",    0.5),
         )
+
+    elif model_name == "lweunet_v2_exp_only":
+        from src.models.lweunet.lweunet_v2_ablation import LWEUNetV2ExpOnly
+        model = LWEUNetV2ExpOnly(
+            in_channels=cfg.get("in_channels",1),
+            num_classes=cfg.get("num_classes",4),
+            base_filters=cfg.get("base_filters",32),
+            dropout_p=cfg.get("dropout_p",0.5),
+    )
+        logger.info(f"Model: LWEUNetV2ExpOnly | Params: {model.count_parameters():,}")
+    
+    elif model_name == "lweunet_v2_exp_mlp":
+        from src.models.lweunet.lweunet_v2_ablation import LWEUNetV2ExpMLP
+        model = LWEUNetV2ExpMLP(
+            in_channels=cfg.get("in_channels",1),
+            num_classes=cfg.get("num_classes",4),
+            base_filters=cfg.get("base_filters",32),
+            dropout_p=cfg.get("dropout_p",0.5),
+    )
+        logger.info(f"Model: LWEUNetV2ExpMLP | Params: {model.count_parameters():,}")
+
+    elif model_name == "lweunet_v2_exp_ctx":
+        from src.models.lweunet.lweunet_v2_ablation import LWEUNetV2ExpContext
+        model = LWEUNetV2ExpContext(
+            in_channels=cfg.get("in_channels",1),
+            num_classes=cfg.get("num_classes",4),
+            base_filters=cfg.get("base_filters",32),
+            dropout_p=cfg.get("dropout_p",0.5),
+    )
+        logger.info(f"Model: LWEUNetV2ExpContext | Params: {model.count_parameters():,}")
     else:
         raise ValueError(f"Unknown model '{model_name}'")
 
