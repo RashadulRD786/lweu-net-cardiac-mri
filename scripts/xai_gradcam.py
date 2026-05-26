@@ -1,5 +1,5 @@
 """
-XAI Method 1 — Guided Grad-CAM for Cardiac MRI Segmentation
+XAI Method 1 — Seg-Grad-CAM for Cardiac MRI Segmentation
 =============================================================
 Generates per-class (LV, RV, MYO) Guided Grad-CAM attention heatmaps for
 three models side-by-side to visually validate Claim 1:
@@ -26,9 +26,7 @@ Usage:
 
 Citations:
     Selvaraju et al. (2017) ICCV     — Original Grad-CAM
-    Springenberg et al. (2014) arXiv — Guided Backpropagation
     Vinogradova et al. (2020) AAAI   — Grad-CAM for segmentation tasks
-    Adebayo et al. (2018) NeurIPS    — Faithfulness limitation of Guided BP
 """
 
 import os
@@ -135,16 +133,19 @@ def get_target_layers(name: str, model: torch.nn.Module) -> dict:
         return {
             "bottleneck" : model.bottleneck[0],      # ConvBlock inside nn.Sequential
             "dec3"       : model.dec3.conv,           # ConvBlock at decoder stage 3
+            "dec4"       : model.dec4.conv,            # ConvBlock at decoder stage 4
         }
     elif name == "LWEU-Net Base":
         return {
             "bottleneck" : model.bottleneck.block,           # DepthwiseSepResidualBlock
             "dec3"       : model.decoder.level3.conv,        # DecoderConvBlock
+            "dec4"       : model.decoder.level4.conv,        # DecoderConvBlock
         }
     elif name == "LWEU-Net V2":
         return {
             "bottleneck" : model.bottleneck.block,           # EnhancedBlock (with context gate)
             "dec3"       : model.decoder.level3.block,       # EnhancedBlock (with context gate)
+            "dec4"       : model.decoder.level4.block,       # EnhancedBlock (with context gate)
         }
 
 
@@ -269,7 +270,7 @@ def get_prediction(model: torch.nn.Module, input_tensor: torch.Tensor) -> np.nda
     return pred.cpu().numpy().astype(np.int64)
 
 
-def generate_guided_gradcam(
+def generate_seggradcam(
     model        : torch.nn.Module,
     target_layer : torch.nn.Module,
     input_tensor : torch.Tensor,
@@ -282,8 +283,7 @@ def generate_guided_gradcam(
       - Seg-Grad-CAM (Vinogradova 2020): soft ROI mask from predicted
         probabilities focuses gradients on the segmented region only
       - GradCAM (Selvaraju 2017): spatially weighted feature map activations
-      - Guided Backpropagation (Springenberg 2014): manual implementation
-        with ReLU hooks — suppresses noisy negative gradients
+      
 
     Parameters
     ----------
@@ -319,15 +319,15 @@ def generate_guided_gradcam(
         argmax_np  = probs.argmax(dim=1).squeeze(0).cpu().numpy()
         class_prob = probs[0, class_idx].cpu().numpy()
 
-    soft_mask = np.round(
-        class_prob * (argmax_np == class_idx)
-    ).astype(np.float32)                                    # (H, W) in {0, 1}
+    soft_mask = (class_prob * (argmax_np == class_idx)).astype(np.float32)                                  # (H, W) in {0, 1}
 
     # ── Step 2: GradCAM — coarse spatial attention ────────────────────
     target      = SemanticSegmentationTarget(class_idx, soft_mask)
-    cam         = GradCAM(model=model, target_layers=[target_layer])
-    gradcam_out = cam(input_tensor=input_tensor, targets=[target])
-    gradcam_map = gradcam_out[0]                            # (H, W) in [0, 1]
+    #cam         = GradCAM(model=model, target_layers=[target_layer])
+    #gradcam_out = cam(input_tensor=input_tensor, targets=[target])
+    with GradCAM(model=model, target_layers=[target_layer]) as cam:
+      gradcam_out = cam(input_tensor=input_tensor, targets=[target])
+    #gradcam_map = gradcam_out[0]                            # (H, W) in [0, 1]
 
     
     # return guided_gradcam.astype(np.float32)
@@ -438,7 +438,7 @@ def compose_and_save_figure(
             mask_np, cmap=SEG_CMAP, vmin=0, vmax=3, interpolation="nearest"
         )
 
-        # Cols 2–4 — Per-class Guided Grad-CAM overlays
+        # Cols 2–4 — Per-class Seg-Grad-CAM overlays
         # Order: LV (col 2), RV (col 3), MYO (col 4)
         for col_offset, class_idx in enumerate(CAM_COL_ORDER):
             overlay = overlay_cam_on_mri(img_display, heatmaps[class_idx])
@@ -471,7 +471,7 @@ def compose_and_save_figure(
     )
 
     # ── Figure title ──────────────────────────────────────────────────
-    layer_label = "Decoder Stage 3" if layer_name == "dec3" else "Bottleneck"
+    layer_label = {"dec3": "Decoder Stage 3", "dec4": "Decoder Stage 4", "bottleneck": "Bottleneck"}.get(layer_name, layer_name)
     fig.suptitle(
         f"Seg-Grad-CAM  —  {layer_label} Layer  |  Per-Class Attention Maps (LV / RV / MYO)",
         fontsize   = 12,
@@ -491,7 +491,7 @@ def compose_and_save_figure(
 
 def main():
     print("\n" + "=" * 62)
-    print("  XAI Method 1 — Guided Grad-CAM")
+    print("  XAI Method 1 — Seg-Grad-CAM")
     print("  Claim: EnhancedBlock learns correct anatomical localisation")
     print("=" * 62)
 
@@ -537,11 +537,11 @@ def main():
         models[name] = load_model(name, ckpt_path)
 
     # ── Step 3 — Generate heatmaps for both target layers ────────────
-    print("\n[3/4] Generating Guided Grad-CAM heatmaps...")
+    print("\n[3/4] Generating Seg-Grad-CAM heatmaps...")
 
     # Accumulate results per layer: {"dec3": [...], "bottleneck": [...]}
     # Each entry in the list is one model row dict for compose_figure
-    results = {"dec3": [], "bottleneck": []}
+    results = {"dec3": [], "bottleneck": [], "dec4": []}
 
     for model_name, model in models.items():
         print(f"\n  Model: {model_name}")
@@ -556,7 +556,7 @@ def main():
 
             for class_idx, class_name in CLASS_NAMES.items():
                 print(f"    [{layer_key}] Class {class_idx} ({class_name}) ... ", end="", flush=True)
-                heatmap = generate_guided_gradcam(
+                heatmap = generate_seggradcam(
                     model        = model,
                     target_layer = target_layer,
                     input_tensor = input_tensor,
@@ -586,7 +586,7 @@ def main():
         )
 
     print("\n" + "=" * 62)
-    print("  Guided Grad-CAM complete.")
+    print("  Seg-Grad-CAM complete.")
     print(f"  Primary figure  : {OUTPUT_DIR}/gradcam_dec3.png")
     print(f"  Secondary figure: {OUTPUT_DIR}/gradcam_bottleneck.png")
     print("=" * 62 + "\n")
