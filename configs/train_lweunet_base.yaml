@@ -14,8 +14,8 @@ run_name:        "lweunet_base_v1"
 
 # --- Paths ---
 data_dir:        "data/preprocessed"
-checkpoint_dir:  "checkpoints/lweunet"
-log_dir:         "logs/lweunet"
+checkpoint_dir:  "checkpoints/lweunet_base"
+log_dir:         "logs/lweunet_base"
 
 # --- Data ---
 num_classes:     4
