@@ -1,0 +1,14 @@
+Boundary Alignment Scores — MYO Seg-Grad-CAM at Dec3
+Boundary radius : 5 pixels
+Slice           : patient138_ED_slice04_img.npy
+MYO class index : 2
+
+Model                  AbsScore    Ratio  Interpretation
+-----------------------------------------------------------------
+U-Net Baseline           0.4581   0.8255  interior-focused
+LWEU-Net Base            0.2592   1.0907  boundary-focused
+LWEU-Net V2              0.2093   1.0506  boundary-focused
+
+AbsScore = mean heatmap within boundary band
+Ratio    = AbsScore / mean heatmap over full MYO region
+Ratio > 1.0 → boundary-focused | Ratio < 1.0 → interior-focused
