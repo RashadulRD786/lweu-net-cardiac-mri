@@ -13,8 +13,8 @@ run_name:        "lweunet_eca_v1"
 
 # --- Paths ---
 data_dir:        "data/preprocessed"
-checkpoint_dir:  "checkpoints/lweunet"
-log_dir:         "logs/lweunet"
+checkpoint_dir:  "checkpoints/lweunet_eca"
+log_dir:         "logs/lweunet_eca"
 
 # --- Data ---
 num_classes:     4
