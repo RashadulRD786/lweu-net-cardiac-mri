@@ -1,0 +1,30 @@
+# configs/preprocessing_config_mnms.yaml
+#
+# Configuration for M&Ms zero-shot generalisation preprocessing.
+#
+# IMPORTANT: The three core preprocessing parameters below (target_spacing,
+# target_size, clip_low, clip_high) are IDENTICAL to preprocessing_config.yaml.
+# Do not change them — any difference would invalidate the zero-shot comparison.
+# The model was trained on ACDC data preprocessed with these exact values.
+
+paths:
+  mnms_root    : data/MnM                          # root containing Training/ Validation/ Testing/
+  metadata_csv : data/MnM/211230_MnMs_Dataset_information_diagnosis_opendataset.csv
+  output_dir   : data/MnM/preprocessed             # all processed .npy pairs saved here
+
+preprocessing:
+  target_spacing : 1.5          # mm/pixel — MUST match ACDC preprocessing_config.yaml
+  target_size    : [224, 224]   # pixels   — MUST match ACDC preprocessing_config.yaml
+  clip_low       : 0.5          # percentile lower bound — MUST match ACDC
+  clip_high      : 99.5         # percentile upper bound — MUST match ACDC
+
+labels:
+  # Saved label convention after remapping — matches ACDC and model training
+  background : 0
+  rv         : 1
+  myo        : 2
+  lv         : 3
+  # M&Ms original convention (before remapping):
+  #   mnms_lv=1  → acdc_lv=3   (swapped)
+  #   mnms_myo=2 → acdc_myo=2  (unchanged)
+  #   mnms_rv=3  → acdc_rv=1   (swapped)
