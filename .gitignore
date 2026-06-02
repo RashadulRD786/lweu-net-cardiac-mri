@@ -2,6 +2,7 @@
 data/raw/
 data/processed/
 data/splits/
+data/
 
 # Model weights
 checkpoints/
