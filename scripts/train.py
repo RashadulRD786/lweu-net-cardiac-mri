@@ -195,10 +195,26 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--device", default=None)
+    parser.add_argument("--seed",   type=int, default=None,
+                        help="Random seed (overrides config value). "
+                             "Also sets seed-aware checkpoint/log dirs.")
     args = parser.parse_args()
 
-    cfg    = load_config(args.config)
-    set_seed(cfg.get("seed", 42))
+    cfg  = load_config(args.config)
+
+    # CLI --seed takes priority over config; fall back to config or 42
+    seed = args.seed if args.seed is not None else cfg.get("seed", 42)
+    set_seed(seed)
+
+    # When --seed is passed via CLI, derive seed-aware output directories
+    # so each run saves to its own folder without touching the config file.
+    if args.seed is not None:
+        base_ckpt = cfg.get("checkpoint_dir", "checkpoints/lweunet")
+        base_log  = cfg.get("log_dir",        "logs/lweunet")
+        cfg["checkpoint_dir"] = f"{base_ckpt}_seed{seed}"
+        cfg["log_dir"]        = f"{base_log}_seed{seed}"
+        logger.info(f"Seed-aware checkpoint dir : {cfg['checkpoint_dir']}")
+        logger.info(f"Seed-aware log dir        : {cfg['log_dir']}")
 
     device = torch.device(args.device) if args.device else \
              torch.device("cuda" if torch.cuda.is_available() else "cpu")
