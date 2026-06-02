@@ -210,6 +210,9 @@ def main():
     parser.add_argument("--phase",      default="ALL",
                         choices=["ED", "ES", "ALL", "combined"])
     parser.add_argument("--device",     default=None)
+    parser.add_argument("--save_path",  default=None,
+                        help="Override output JSON path. "
+                             "Default: {log_dir}/test_results_by_phase.json")
     args = parser.parse_args()
 
     cfg    = load_config(args.config)
@@ -233,10 +236,16 @@ def main():
         results = run_evaluation(model, cfg, device, phase_filter, label)
         all_results[label] = {**results, **efficiency}
 
-    # Save JSON
-    log_dir  = cfg.get("log_dir", "logs/unet_baseline")
-    os.makedirs(log_dir, exist_ok=True)
-    out_path = os.path.join(log_dir, "test_results_by_phase.json")
+    # Save JSON — --save_path overrides the config-derived default
+    if args.save_path:
+        out_path = args.save_path
+        out_dir  = os.path.dirname(out_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+    else:
+        log_dir  = cfg.get("log_dir", "logs/unet_baseline")
+        os.makedirs(log_dir, exist_ok=True)
+        out_path = os.path.join(log_dir, "test_results_by_phase.json")
     with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
     logger.info(f"\nAll results saved → {out_path}")
