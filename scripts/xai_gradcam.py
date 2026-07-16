@@ -60,9 +60,9 @@ from src.models.lweunet.lweunet_v2 import LWEUNetV2
 # =============================================================================
 
 CHECKPOINTS = {
-    "U-Net Baseline" : "checkpoints/unet_baseline/best_model.pth",
-    "LWEU-Net Base"  : "checkpoints/lweunet_base/best_model.pth",
-    "LWEU-Net V2"    : "checkpoints/lweunet_v2/best_model.pth",
+    "Baseline U-Net" : "checkpoints/unet_baseline/best_model.pth",
+    "LiteU-Net"  : "checkpoints/lweunet_base/best_model.pth",
+    "EnhU-Net"    : "checkpoints/lweunet_v2/best_model.pth",
 }
 
 TEST_DATA_DIR     = "data/preprocessed/test"
@@ -87,12 +87,12 @@ SEG_CMAP = ListedColormap(["black", "red", "lime", "blue"])
 
 def build_model(name: str) -> torch.nn.Module:
     """Instantiate the correct model architecture for each model name."""
-    if name == "U-Net Baseline":
+    if name == "Baseline U-Net":
         return UNetBaseline(in_channels=1, num_classes=4)
-    elif name == "LWEU-Net Base":
+    elif name == "LiteU-Net":
         # use_eca=False — pure base model, no ECA, matches checkpoint
         return LWEUNet(in_channels=1, num_classes=4, use_eca=False)
-    elif name == "LWEU-Net V2":
+    elif name == "EnhU-Net":
         return LWEUNetV2(in_channels=1, num_classes=4)
     else:
         raise ValueError(f"Unknown model name: {name}")
@@ -129,19 +129,19 @@ def get_target_layers(name: str, model: torch.nn.Module) -> dict:
     -------
     dict with keys 'bottleneck' and 'dec3', values are nn.Module objects
     """
-    if name == "U-Net Baseline":
+    if name == "Baseline U-Net":
         return {
             "bottleneck" : model.bottleneck[0],      # ConvBlock inside nn.Sequential
             "dec3"       : model.dec3.conv,           # ConvBlock at decoder stage 3
             "dec4"       : model.dec4.conv,            # ConvBlock at decoder stage 4
         }
-    elif name == "LWEU-Net Base":
+    elif name == "LiteU-Net":
         return {
             "bottleneck" : model.bottleneck.block,           # DepthwiseSepResidualBlock
             "dec3"       : model.decoder.level3.conv,        # DecoderConvBlock
             "dec4"       : model.decoder.level4.conv,        # DecoderConvBlock
         }
-    elif name == "LWEU-Net V2":
+    elif name == "EnhU-Net":
         return {
             "bottleneck" : model.bottleneck.block,           # EnhancedBlock (with context gate)
             "dec3"       : model.decoder.level3.block,       # EnhancedBlock (with context gate)

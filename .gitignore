@@ -39,3 +39,40 @@ Thumbs.db
 *.npy
 *.nii.gz
 *.dcm
+
+*.onnx
+*.trt
+jetson_transfer/
+
+RESEARCH_JOURNEY_*.md
+preprocessing.md
+all_code.md
+
+scripts/preview_*.png
+
+# Generated results (keep only the final thesis figure)
+results/figures/*
+!results/figures/figure5_6_final.png
+results/worst_case_analysis/
+
+# Draft figure generation scripts
+scripts/generate_fig56.py
+scripts/generate_fig56_v2.py
+! scripts/generate_fig56_v3.py
+
+# Empty placeholder files (never implemented)
+src/data/dataloader.py
+src/data/validation.py
+src/evaluation/efficiency.py
+src/evaluation/visualise.py
+src/training/callbacks.py
+src/training/validator.py
+src/utils/config.py
+src/utils/io.py
+src/utils/logger.py
+src/utils/reproducibility.py
+scripts/compute_efficiency.py
+configs/base_config.yaml
+configs/train_lweunet.yaml
+notebooks/03_training_curves.ipynb
+notebooks/04_results_analysis.ipynb
